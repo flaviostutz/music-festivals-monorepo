@@ -1,0 +1,152 @@
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script>
+    <script src="libs/leaflet.timeline.js"></script>
+    <style>
+        html,
+        body,
+        #map {
+            height: 100%;
+        }
+
+        body {
+            padding: 0;
+            margin: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map" style="height: 100%"></div>
+
+    <script>
+        const formatPeriod = (start, end) => {
+            const day = start.substring(0, start.indexOf('T'));
+            const st = start.substring(start.indexOf('T') + 1, start.indexOf('T') + 6);
+            const en = end.substring(start.indexOf('T') + 1, start.indexOf('T') + 6);
+            return `${day} ${st}-${en}`;
+        }
+        const currentTime = () => {
+            return Date.parse('2023-05-20T14:00');
+            // return new Date();
+        }
+        const getFeatureColor = (feature) => {
+            startd = Date.parse(feature.properties.start);
+            endd = Date.parse(feature.properties.end);
+            now = currentTime();
+            // will start in 15min
+            if(startd - now < 15*60000) {
+                return 'yellow'
+            }
+            // will end in 15min
+            if(endd - now < 15*60000) {
+                return 'gray'
+            }
+            return 'red';
+        }
+    </script>
+
+    <script type="text/javascript">
+
+        var map = L.map('map').setView([-15, -45], 3);
+
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // add common text displays
+        var dateLabel;
+        L.Control.Info = L.Control.extend({
+            onAdd: function (map) {
+                dateLabel = L.DomUtil.create('div');
+                // dateLabel.style = 'color:white; background-color:gray'
+                dateLabel.innerHTML = `<input type='button' value='Now' onclick="timelineControl.setTime(currentTime())"></button>`
+                return dateLabel;
+            },
+            onRemove: function (map) { }
+        });
+        L.control.info = function (opts) {
+            return new L.Control.Info(opts);
+        }
+        L.control.info({
+            position: 'bottomleft'
+        }).addTo(map);
+
+        // add events
+        let xhr = new XMLHttpRequest();
+        xhr.open('GET', 'output.geojson');
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.responseType = 'json';
+        xhr.onload = function () {
+            // add features to map
+            if (xhr.status !== 200) return
+            var features = xhr.response;
+
+            // timelineLayer = L.timeline(features, {
+            timelineLayer = L.geoJSON(features, {
+                pointToLayer: function (feature, latlng) {
+                    return L.circleMarker(latlng, {
+                        radius: 8,
+                        weight: 2,
+                        color: getFeatureColor(feature),
+                        fillColor: getFeatureColor(feature),
+                        fillOpacity: 0.5
+                    });
+                },
+                waitToUpdateMap: true,
+                onEachFeature: function (feature, layer) {
+                    let tooltipContent = `${feature.properties.band_name}`;
+                    layer.bindTooltip(tooltipContent, { 
+                        permanent: true, 
+                        direction: 'bottom'
+                    });
+
+                    let popupContent = `<h3>${feature.properties.band_name}<a target='_blank' href='https://maps.google.com/?daddr=${feature.geometry.coordinates[1]},${feature.geometry.coordinates[0]}'><img style='float:right' width=20 src='https://maps.gstatic.com/tactile/omnibox/directions-2x-20150909.png'></a></h3>
+                                        <img style='float:left; padding-right: 1em; padding-bottom: 0.5em' width='150' src='${feature.properties.band_image_url}'>
+                                        <p>${feature.properties.band_description}</p>
+                                        <p>${formatPeriod(feature.properties.start, feature.properties.end)}</p>`;
+                    layer.bindPopup(popupContent);
+                },
+                filter: function(feature, layer) {
+                    startd = Date.parse(feature.properties.start);
+                    endd = Date.parse(feature.properties.end);
+                    now = currentTime();
+                    console.log(`${startd} ${endd} ${now}`);
+                    return startd >= now && now <= endd;
+                }
+            });
+
+            // add events timeline control
+            // timelineControl = L.timelineSliderControl({
+            //     formatOutput: function (date) {
+            //         return `${new Date(date).toISOString().substring(0, 16)}`;
+            //     },
+            //     enableKeyboardControls: true,
+            //     duration: 180000,
+            //     steps: 1000
+            // });
+
+            timelineLayer.addTo(map);
+            // timelineControl.addTo(map);
+            // timelineControl.addTimelines(timelineLayer);
+
+            // zoom
+            var eventsLayer = L.geoJSON(features);
+            map.fitBounds(eventsLayer.getBounds());
+
+            timelineControl.setTime(currentTime())
+            // keep updating time
+            // window.setInterval(() => {
+            //     timelineControl.setTime(currentTime());
+            // }, 5000);
+        };
+        xhr.send();
+
+    </script>
+
+</body>
+
+</html>
