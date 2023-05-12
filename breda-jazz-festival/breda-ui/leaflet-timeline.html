@@ -4,7 +4,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script>
-    <script src="libs/leaflet.timeline.js"></script>
+    <script type="text/javascript" src="https://translate.google.com/translate_a/element.js"></script>    
+    </script>
     <style>
         html,
         body,
@@ -21,7 +22,7 @@
 
 <body>
     <div id="map" style="height: 100%"></div>
-
+    
     <script>
         const formatPeriod = (start, end) => {
             const day = start.substring(0, start.indexOf('T'));
@@ -30,70 +31,65 @@
             return `${day} ${st}-${en}`;
         }
         const currentTime = () => {
-            return Date.parse('2023-05-20T14:00');
+            return new Date(Date.parse('2023-05-20T14:00Z'));
             // return new Date();
         }
-        const getFeatureColor = (feature) => {
+        var mapTime = currentTime();
+        const setMapTime = (mapTime0) => {
+            mapTime = mapTime0;
+            map.invalidateSize(true);
+        }
+        const getFeatureColorOpacityStatus = (feature) => {
             startd = Date.parse(feature.properties.start);
             endd = Date.parse(feature.properties.end);
-            now = currentTime();
-            // will start in 15min
-            if(startd - now < 15*60000) {
-                return 'yellow'
+            // event finished - light gray
+            if(mapTime > endd) {
+                return [ '#b2b3b1', 0.8, 'Event ended' ];
             }
-            // will end in 15min
-            if(endd - now < 15*60000) {
-                return 'gray'
+            // event happening now
+            if(mapTime >= startd && mapTime <= endd) {
+                // event will end soon - light green
+                if(mapTime > endd - (10*60000)) {
+                    return [ '#5c911a', 0.5, `Ends in ${Math.round((endd - mapTime)/60000)} mins` ];
+                }
+                // event hapenning now - green
+                return [ '#5c911a', 0.8, `Live for ${Math.round((mapTime - startd)/60000)} mins (${Math.round((endd - mapTime)/60000)} mins left)` ];
             }
-            return 'red';
+            // event will start soon - yellow
+            if(mapTime > startd - (10*60000) && mapTime < startd) {
+                return [ '#cca937', 0.8, `Starts in ${Math.round((startd - mapTime)/60000)} mins` ];
+            }
+            // event will happen in the future
+            return [ '#cca937', 0.3, , `Starts in ${Math.round((startd - mapTime)/60000)} mins` ];
         }
-    </script>
 
-    <script type="text/javascript">
-
+        // initialize map
         var map = L.map('map').setView([-15, -45], 3);
+        var displayingPopup = false;
+        map.on('popupopen', () => {
+            displayingPopup = true
+            new google.translate.TranslateElement({pageLanguage: 'nl'}, 'google_translate_element');
+        })
+        map.on('popupclose', () => {
+            displayingPopup = false;
+        })
 
         L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
 
-        // add common text displays
-        var dateLabel;
-        L.Control.Info = L.Control.extend({
-            onAdd: function (map) {
-                dateLabel = L.DomUtil.create('div');
-                // dateLabel.style = 'color:white; background-color:gray'
-                dateLabel.innerHTML = `<input type='button' value='Now' onclick="timelineControl.setTime(currentTime())"></button>`
-                return dateLabel;
-            },
-            onRemove: function (map) { }
-        });
-        L.control.info = function (opts) {
-            return new L.Control.Info(opts);
-        }
-        L.control.info({
-            position: 'bottomleft'
-        }).addTo(map);
-
-        // add events
-        let xhr = new XMLHttpRequest();
-        xhr.open('GET', 'output.geojson');
-        xhr.setRequestHeader('Content-Type', 'application/json');
-        xhr.responseType = 'json';
-        xhr.onload = function () {
-            // add features to map
-            if (xhr.status !== 200) return
-            var features = xhr.response;
-
-            // timelineLayer = L.timeline(features, {
-            timelineLayer = L.geoJSON(features, {
+        var eventsLayer;
+        const updateEventsLayer = () => {
+            var eventsLayer1 = L.geoJSON(eventsGeoJSON, {
                 pointToLayer: function (feature, latlng) {
+                    var colorOpacity = getFeatureColorOpacityStatus(feature);
                     return L.circleMarker(latlng, {
-                        radius: 8,
+                        radius: 15,
                         weight: 2,
-                        color: getFeatureColor(feature),
-                        fillColor: getFeatureColor(feature),
-                        fillOpacity: 0.5
+                        color: colorOpacity[0],
+                        fillColor: colorOpacity[0],
+                        fillOpacity: colorOpacity[1],
+                        opacity: colorOpacity[1]
                     });
                 },
                 waitToUpdateMap: true,
@@ -107,46 +103,74 @@
                     let popupContent = `<h3>${feature.properties.band_name}<a target='_blank' href='https://maps.google.com/?daddr=${feature.geometry.coordinates[1]},${feature.geometry.coordinates[0]}'><img style='float:right' width=20 src='https://maps.gstatic.com/tactile/omnibox/directions-2x-20150909.png'></a></h3>
                                         <img style='float:left; padding-right: 1em; padding-bottom: 0.5em' width='150' src='${feature.properties.band_image_url}'>
                                         <p>${feature.properties.band_description}</p>
-                                        <p>${formatPeriod(feature.properties.start, feature.properties.end)}</p>`;
+                                        ${formatPeriod(feature.properties.start, feature.properties.end)}<br>
+                                        <strong>${getFeatureColorOpacityStatus(feature)[2]}</strong>
+                                        <div id="google_translate_element"></div>`;
                     layer.bindPopup(popupContent);
                 },
                 filter: function(feature, layer) {
                     startd = Date.parse(feature.properties.start);
                     endd = Date.parse(feature.properties.end);
-                    now = currentTime();
-                    console.log(`${startd} ${endd} ${now}`);
-                    return startd >= now && now <= endd;
+                    return mapTime >= (startd - 20*60000) && mapTime <= (endd + 15*60000);
                 }
             });
+            if(eventsLayer) {
+                eventsLayer.remove();
+            }
+            eventsLayer1.addTo(map);
+            eventsLayer = eventsLayer1;
+        }
 
-            // add events timeline control
-            // timelineControl = L.timelineSliderControl({
-            //     formatOutput: function (date) {
-            //         return `${new Date(date).toISOString().substring(0, 16)}`;
-            //     },
-            //     enableKeyboardControls: true,
-            //     duration: 180000,
-            //     steps: 1000
-            // });
+        // add common text displays
+        var dateLabel;
+        L.Control.Info = L.Control.extend({
+            onAdd: function (map) {
+                dateLabel = L.DomUtil.create('div');
+                // dateLabel.style = 'color:white; background-color:gray'
+                dateLabel.innerHTML = `<input type='button' value='Now' onclick="timelineControl.setTime(currentTime())"></button> ${mapTime.toISOString()}`
+                return dateLabel;
+            },
+            onRemove: function (map) { }
+        });
+        L.control.info = function (opts) {
+            return new L.Control.Info(opts);
+        }
+        var timeControl = L.control.info({
+            position: 'bottomleft'
+        }).addTo(map);
 
-            timelineLayer.addTo(map);
-            // timelineControl.addTo(map);
-            // timelineControl.addTimelines(timelineLayer);
+        // add events
+        var eventsGeoJSON;
+        let xhr = new XMLHttpRequest();
+        xhr.open('GET', 'output.geojson');
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.responseType = 'json';
+        xhr.onload = function () {
+            // add features to map
+            if (xhr.status !== 200) return
+            eventsGeoJSON = xhr.response;
+
+            updateEventsLayer();
 
             // zoom
-            var eventsLayer = L.geoJSON(features);
+            var eventsLayer = L.geoJSON(eventsGeoJSON);
             map.fitBounds(eventsLayer.getBounds());
 
-            timelineControl.setTime(currentTime())
             // keep updating time
-            // window.setInterval(() => {
-            //     timelineControl.setTime(currentTime());
-            // }, 5000);
+            setMapTime(currentTime());
+            var startTime = currentTime();
+            window.setInterval(() => {
+                if(displayingPopup) return;
+                setMapTime(new Date(mapTime.getTime() + 2*60000));
+                // ui update
+                timeControl.remove();
+                timeControl.addTo(map);
+                updateEventsLayer();
+            }, 300);
         };
         xhr.send();
 
     </script>
-
 </body>
 
 </html>
