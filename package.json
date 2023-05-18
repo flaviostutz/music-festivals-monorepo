@@ -1,6 +1,6 @@
 {
   "engines": {
-    "npm": "8.19.3"
+    "npm": "8.19.4"
   },
   "workspaces": [
     "modules/**/*"

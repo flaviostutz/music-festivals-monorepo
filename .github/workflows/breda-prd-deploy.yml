@@ -1,4 +1,4 @@
-name: prd-deploy
+name: breda-prd-deploy
 
 on:
   push:

@@ -1,4 +1,4 @@
-name: pr-remove
+name: breda-pr-remove
 
 on:
   pull_request:

@@ -1,4 +1,4 @@
-name: dev-deploy
+name: breda-dev-deploy
 
 on:
   push:

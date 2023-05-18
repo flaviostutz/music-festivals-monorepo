@@ -1,4 +1,4 @@
-name: pr-deploy
+name: breda-pr-deploy
 
 on:
   pull_request:
