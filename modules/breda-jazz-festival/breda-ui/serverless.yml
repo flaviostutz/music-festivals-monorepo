@@ -1,0 +1,88 @@
+service: breda-ui
+frameworkVersion: '3'
+configValidationMode: error
+
+provider:
+  name: aws
+  runtime: nodejs14.x
+
+custom:
+  hostedZoneName: stutz.click
+  aliasHostedZoneId: Z3AQBSTGFYJSTF    # us-east-1
+  aliasDNSName: s3-website-us-east-1.amazonaws.com
+  s3Sync:
+    - bucketName: ${param:siteName}
+      localDir: static
+
+params:
+  default:
+    siteName: ${sls:stage}.breda.stutz.click
+  dev:
+    siteName: dev.breda.stutz.click
+  prd:
+    siteName: breda.stutz.click
+
+plugins:
+  - serverless-s3-sync
+
+outputs:
+  # used by pipeline to set environment url in GH 
+  environment-url: http://${param:siteName}
+
+resources:
+  Resources:
+    StaticSite:
+      Type: AWS::S3::Bucket
+      Properties:
+        PublicAccessBlockConfiguration:
+          BlockPublicAcls: false
+          BlockPublicPolicy: false
+          IgnorePublicAcls: false
+          RestrictPublicBuckets: false
+        BucketName: ${param:siteName}
+        WebsiteConfiguration:
+          IndexDocument: index.html
+
+    StaticSiteS3BucketPolicy:
+      Type: AWS::S3::BucketPolicy
+      Properties:
+        Bucket:
+          Ref: StaticSite
+        PolicyDocument:
+          Statement:
+            - Sid: PublicReadGetObject
+              Effect: Allow
+              Principal: "*"
+              Action:
+              - s3:GetObject
+              Resource:
+                Fn::Join: [
+                  "", [
+                    "arn:aws:s3:::",
+                    {
+                      "Ref": "StaticSite"
+                    },
+                    "/*"
+                  ]
+                ]
+
+    DnsRecord:
+      Type: "AWS::Route53::RecordSet"
+      Properties:
+        AliasTarget:
+          DNSName: ${self:custom.aliasDNSName}
+          HostedZoneId: ${self:custom.aliasHostedZoneId}
+        HostedZoneName: ${self:custom.hostedZoneName}.
+        Name:
+          Ref: StaticSite
+        Type: 'A'
+
+  Outputs:
+    S3BucketSecureURL:
+      Value: !Join
+        - ''
+        - - 'https://'
+          - !GetAtt
+            - StaticSite
+            - DomainName
+      Description: Website URL

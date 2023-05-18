@@ -1,0 +1,356 @@
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script>
+    <script type="text/javascript" src="https://translate.google.com/translate_a/element.js"></script>
+    </script>
+    <style>
+        html,
+        body,
+        #map {
+            height: 100%;
+        }
+
+        body {
+            padding: 0;
+            margin: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map" style="height: 100%"></div>
+
+    <script>
+        // EVENTS 
+
+        const formatPeriod = (start, end) => {
+            const day = start.substring(0, start.indexOf('T'));
+            const st = start.substring(start.indexOf('T') + 1, start.indexOf('T') + 6);
+            const en = end.substring(start.indexOf('T') + 1, start.indexOf('T') + 6);
+            return `${day} ${st}-${en}`;
+        }
+        const currentTime = () => {
+            // return new Date(Date.parse('2023-05-20T14:00Z'));
+            return new Date();
+        }
+        var updateToCurrentTime = false;
+        var mapTime = currentTime();
+        const setMapTime = (mapTime0, updateNowTime) => {
+            mapTime = mapTime0;
+            updateToCurrentTime = updateNowTime;
+            // map.invalidateSize(true);
+
+            // change now button style
+            var nowButton = window.document.getElementById('nowButton');
+            if (updateToCurrentTime) {
+                nowButton.style.color = 'red';
+            } else {
+                nowButton.style.color = ''
+            }
+        }
+        const getFeatureColorOpacityStatus = (feature) => {
+            startd = Date.parse(feature.properties.start);
+            endd = Date.parse(feature.properties.end);
+            // event finished - light gray
+            if (mapTime > endd) {
+                return ['#b2b3b1', 0.8, 'Event ended'];
+            }
+            // event happening now
+            if (mapTime >= startd && mapTime <= endd) {
+                // event will end soon - light green
+                if (mapTime > endd - (10 * 60000)) {
+                    return ['#5c911a', 0.5, `Ends in ${Math.round((endd - mapTime) / 60000)} mins`];
+                }
+                // event hapenning now - green
+                return ['#5c911a', 0.8, `Live for ${Math.round((mapTime - startd) / 60000)} mins (${Math.round((endd - mapTime) / 60000)} mins left)`];
+            }
+            // event will start soon - yellow
+            if (mapTime > startd - (10 * 60000) && mapTime < startd) {
+                return ['#cca937', 0.8, `Starts in ${Math.round((startd - mapTime) / 60000)} mins`];
+            }
+            // event will happen in the future
+            return ['#cca937', 0.3, , `Starts in ${Math.round((startd - mapTime) / 60000)} mins`];
+        }
+        getFormattedDate = (date) => {
+            var ds = date.toLocaleString('pt-br');
+            return ds.substring(0, ds.lastIndexOf(':'));
+        }
+
+        // initialize map
+        var map = L.map('map').setView([-15, -45], 3);
+
+        // this is used to avoid updating map elements while a popup is open
+        var displayingPopup = false;
+        map.on('popupopen', () => {
+            displayingPopup = true
+            new google.translate.TranslateElement({ pageLanguage: 'nl' }, 'google_translate_element');
+        })
+        map.on('popupclose', () => {
+            displayingPopup = false;
+        })
+
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // add geojson elements related to current map time
+        var eventsLayer;
+        const updateEventsLayer = () => {
+            var eventsLayer1 = L.geoJSON(eventsGeoJSON, {
+                pointToLayer: function (feature, latlng) {
+                    var colorOpacity = getFeatureColorOpacityStatus(feature);
+                    var circleMarker = L.circleMarker(latlng, {
+                        radius: 15,
+                        weight: 2,
+                        color: colorOpacity[0],
+                        fillColor: colorOpacity[0],
+                        fillOpacity: colorOpacity[1],
+                        opacity: colorOpacity[1]
+                    });
+                    // var txtIcon = L.divIcon({
+                    //     html:`<div>${feature.properties.band_name}</div>`,
+                    //     iconSize: null
+                    // });
+                    // var txtMarker = L.marker(latlng, {icon: txtIcon});
+                    // var fgroup = L.featureGroup([circleMarker, txtMarker]);
+                    // return fgroup;
+                    return circleMarker;
+                },
+                waitToUpdateMap: true,
+                onEachFeature: function (feature, layer) {
+                    let tooltipContent = `${feature.properties.band_name}`;
+                    layer.bindTooltip(tooltipContent, {
+                        permanent: true,
+                        direction: 'bottom'
+                    });
+
+                    let popupContent = `<h3>${feature.properties.band_name}<a target='_blank' href='https://maps.google.com/?daddr=${feature.geometry.coordinates[1]},${feature.geometry.coordinates[0]}'><img style='float:right' width=20 src='https://maps.gstatic.com/tactile/omnibox/directions-2x-20150909.png'></a></h3>
+                                        <img style='float:left; padding-right: 1em; padding-bottom: 0.5em' width='150' src='${feature.properties.band_image_url}'>
+                                        <p>${feature.properties.band_description} - Place: ${feature.properties.place_name} - <a href='https://www.youtube.com/results?search_query=${feature.properties.band_name}' target='_blank'>Search youtube</a></p>
+                                        ${formatPeriod(feature.properties.start, feature.properties.end)}<br>
+                                        <strong>${getFeatureColorOpacityStatus(feature)[2]}</strong>
+                                        <div id="google_translate_element"></div>`;
+                    layer.bindPopup(popupContent);
+                },
+                filter: function (feature, layer) {
+                    startd = Date.parse(feature.properties.start);
+                    endd = Date.parse(feature.properties.end);
+                    return mapTime >= (startd - 20 * 60000) && mapTime <= (endd + 15 * 60000);
+                }
+            });
+            if (eventsLayer) {
+                eventsLayer.remove();
+            }
+            eventsLayer1.addTo(map);
+            eventsLayer = eventsLayer1;
+        }
+
+        // add time controls
+        var dateLabel;
+        L.Control.Info = L.Control.extend({
+            onAdd: function (map) {
+                dateLabel = L.DomUtil.create('div');
+                // dateLabel.style = 'color:white; background-color:gray'
+                dateLabel.innerHTML = `
+                    <div style='background-color:gray; color:white; padding: 3px'>
+                        <div>
+                            <input style='font-size:1.5em' type='button' value='<' onclick="setMapTime(new Date(mapTime.getTime() - 15*60000), false)"></button>
+                            <input id='nowButton' style='font-size:1.5em' type='button' value='Now' onclick="setMapTime(currentTime(), true)"></button>
+                            <input style='font-size:1.5em' type='button' value='>' onclick="setMapTime(new Date(mapTime.getTime() + 15*60000), false)"></button>
+                        </div>
+                        <strong id='currentTime'>${getFormattedDate(mapTime)}</strong>
+                    </div>
+                `
+                return dateLabel;
+            },
+            onRemove: function (map) { }
+        });
+        L.control.info = function (opts) {
+            return new L.Control.Info(opts);
+        }
+        var timeControl = L.control.info({
+            position: 'bottomleft'
+        }).addTo(map);
+
+
+        // add geojson events info
+        var eventsGeoJSON;
+        let xhr = new XMLHttpRequest();
+        xhr.open('GET', 'output.geojson');
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.responseType = 'json';
+        xhr.onload = function () {
+            // add features to map
+            if (xhr.status !== 200) return
+            eventsGeoJSON = xhr.response;
+
+            updateEventsLayer();
+
+            // zoom
+            var eventsLayer = L.geoJSON(eventsGeoJSON);
+            map.fitBounds(eventsLayer.getBounds());
+
+            // keep updating time
+            setMapTime(currentTime(), true);
+            updateToCurrentTime = true;
+            var startTime = currentTime();
+            window.setInterval(() => {
+                if (displayingPopup) return;
+                if (updateToCurrentTime) {
+                    // setMapTime(new Date(mapTime.getTime() + 2 * 60000), true);
+                    setMapTime(currentTime(), true);
+                };
+                // showLocation({coords:{latitude: 51.588294, longitude: 4.774952}});
+                // ui update
+                window.document.getElementById('currentTime').innerHTML = getFormattedDate(mapTime)
+                updateEventsLayer();
+            }, 300);
+        };
+        xhr.send();
+    </script>
+
+
+    <script>
+        // DEVICE POSITIONING
+
+        startLocation = () => {
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(showLocation);
+            } else {
+                console.error("Geolocation is not supported by this browser");
+            }
+        }
+
+        var trackPos = false;
+        setTrack = (trackPos0) => {
+            trackPos = trackPos0;
+            if(trackPos0) {
+                window.document.getElementById('posButton').style.color = 'red';
+            } else {
+                window.document.getElementById('posButton').style.color = '';
+            }
+        }
+        map.on('move', () => {
+            setTrack(false);
+        })
+
+
+        // show current location
+        var locationMarker;
+        var locationCircle;
+        map.createPane("locationMarker");
+        map.getPane("locationMarker").style.zIndex = 999;
+        showLocation = (position) => {
+            if(!trackPos) return;
+            lat = position.coords.latitude;
+            long = position.coords.longitude;
+
+            accuracy = position.coords.accuracy;
+
+            if (locationMarker) {
+                map.removeLayer(locationMarker);
+            }
+            if (locationCircle) {
+                map.removeLayer(locationCircle);
+            }
+
+            locationMarker = L.circleMarker([lat, long], {
+                pane: "locationMarker",
+                radius: 8,
+                weight: 3,
+                color: 'white',
+                fillColor: 'blue',
+                fillOpacity: 1,
+                opacity: 1,
+                stroke: true
+            });
+            locationCircle = L.circleMarker([lat, long], { 
+                pane: "locationMarker",
+                radius: 8 + accuracy/6,
+                weight: 0,
+                color: 'blue',
+                fillColor: 'blue',
+                fillOpacity: 0.2,
+                stroke: false
+            });
+            
+            var featureGroup = L.featureGroup([locationCircle, locationMarker]).addTo(map);
+
+            if(trackPos) {
+                var latlng = L.latLng(lat, long);
+                map.panTo(latlng);
+            }
+        }
+        startLocation();
+
+
+
+        // realtime positioning controls
+        var dateLabel;
+        L.Control.Pos = L.Control.extend({
+            onAdd: function (map) {
+                posCtrl = L.DomUtil.create('div');
+                posCtrl.innerHTML = `
+                    <div>
+                        <input id='posButton' style='font-size:1.5em' type='button' value='Track' onclick="setTrack(!trackPos)"></button>
+                    </div>
+                `
+                return posCtrl;
+            },
+            onRemove: function (map) {}
+        });
+        L.control.pos = function (opts) {
+            return new L.Control.Pos(opts);
+        }
+        var timeControl = L.control.pos({
+            position: 'bottomright'
+        }).addTo(map);
+
+    </script>
+
+
+    <script>
+        // DEVICE ORIENTATION
+        // var orientationHandler = (e) => {
+        //     if(e.webkitCompassHeading) {  //iphone
+        //         angle = 360 - e.webkitCompassHeading;
+        //         this._compassIphone = true;
+        //     } else if(e.alpha)  {   //android
+        //         angle = e.alpha-180;
+        //         this._compassAndroid = true;
+        //     } else {
+        //         console.error('Orientation angle not found');
+        //     }
+        //     angle = Math.round(angle);
+        //     console.log(angle);
+        // }
+
+        // start orientation events
+        // var startOrientation = () => {
+        //     if (typeof(DeviceOrientationEvent) !== 'undefined' &&
+		//         typeof(DeviceOrientationEvent.requestPermission) === 'function') {
+        //         /* iPhoneOS, must ask interactively */
+        //         var that = this;
+        //         DeviceOrientationEvent.requestPermission().then((permission) => {
+        //             if (permission === 'granted') {
+        //                 L.DomEvent.on(window, 'deviceorientation', orientationHandler, this);
+        //             } else if (isAutoActivation !== true) {
+        //                 alert('Cannot activate compass: permission ' + permission);
+        //             }
+        //         }), (reason) => {
+        //             console.error('Error activating compass: ' + reason);
+        //         }
+        //     } else {
+        //         L.DomEvent.on(window, 'deviceorientation', orientationHandler, this);
+        //     }
+        // }
+        // startOrientation();
+        
+    </script>
+
+</body>
+
+</html>

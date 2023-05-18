@@ -1,0 +1,24 @@
+{
+  "name": "breda-ui",
+  "version": "1.0.0",
+  "description": "",
+  "main": "handler.js",
+  "scripts": {
+    "build": "make build",
+    "build-module": "make build-module",
+    "build-sls": "make build-sls",
+    "test": "make test",
+    "test-module": "make test-module",
+    "lint": "make lint",
+    "lint-module": "make lint-module",
+    "unit-tests": "make unit-tests",
+    "deploy": "make deploy",
+    "undeploy": "make undeploy"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "serverless": "^3.22.0",
+    "serverless-s3-sync": "^3.0.0"
+  }
+}

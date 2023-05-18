@@ -1,0 +1,12 @@
+{
+  "engines": {
+    "npm": "8.19.3"
+  },
+  "workspaces": [
+    "modules/**/*"
+  ],
+  "devDependencies": {
+    "turbo": "^1.8.3",
+    "monolint": "^0.3.0"
+  }
+}
