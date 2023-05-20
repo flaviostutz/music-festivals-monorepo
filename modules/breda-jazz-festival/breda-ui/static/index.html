@@ -5,6 +5,17 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"></script>
     <script type="text/javascript" src="https://translate.google.com/translate_a/element.js"></script>
+
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-L1DGYSC3GE"></script>
+    <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+
+    gtag('config', 'G-L1DGYSC3GE');
+    </script>
+
     </script>
     <style>
         html,
@@ -311,9 +322,9 @@
             position: 'bottomright'
         }).addTo(map);
 
-        window.setTimeout(() => {
-            setTrack(true);
-        }, 500)
+        // window.setTimeout(() => {
+        //     setTrack(true);
+        // }, 500)
     </script>
 
 
