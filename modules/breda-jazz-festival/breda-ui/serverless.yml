@@ -206,5 +206,5 @@ resources:
       Description: CloudFront Id
       Value: !Ref CloudFrontDistribution
       Export:
-        Name: CloudFrontId
-        
+        Name: CloudFrontId-${sls:stage}
+
