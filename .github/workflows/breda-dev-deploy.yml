@@ -3,6 +3,8 @@ name: breda-dev-deploy
 on:
   push:
     branches: [ "main" ]
+    paths:
+      - modules/breda-jazz-festival/**/*
 
 jobs:
   deploy:
