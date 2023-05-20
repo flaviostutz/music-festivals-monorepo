@@ -61,7 +61,7 @@
             // event happening now
             if (mapTime >= startd && mapTime <= endd) {
                 // event will end soon - light green
-                if (mapTime > endd - (10 * 60000)) {
+                if (mapTime > endd - (20 * 60000)) {
                     return ['#5c911a', 0.5, `Ends in ${Math.round((endd - mapTime) / 60000)} mins`];
                 }
                 // event hapenning now - green
@@ -138,7 +138,7 @@
                 filter: function (feature, layer) {
                     startd = Date.parse(feature.properties.start);
                     endd = Date.parse(feature.properties.end);
-                    return mapTime >= (startd - 20 * 60000) && mapTime <= (endd + 15 * 60000);
+                    return mapTime >= (startd - 20 * 60000) && mapTime <= (endd + 20 * 60000);
                 }
             });
             if (eventsLayer) {
@@ -157,9 +157,9 @@
                 dateLabel.innerHTML = `
                     <div style='background-color:gray; color:white; padding: 3px'>
                         <div>
-                            <input style='font-size:1.5em' type='button' value='<' onclick="setMapTime(new Date(mapTime.getTime() - 15*60000), false)"></button>
+                            <input style='font-size:1.5em' type='button' value='<' onclick="setMapTime(new Date(mapTime.getTime() - 30*60000), false)"></button>
                             <input id='nowButton' style='font-size:1.5em' type='button' value='Now' onclick="setMapTime(currentTime(), true)"></button>
-                            <input style='font-size:1.5em' type='button' value='>' onclick="setMapTime(new Date(mapTime.getTime() + 15*60000), false)"></button>
+                            <input style='font-size:1.5em' type='button' value='>' onclick="setMapTime(new Date(mapTime.getTime() + 30*60000), false)"></button>
                         </div>
                         <strong id='currentTime'>${getFormattedDate(mapTime)}</strong>
                     </div>
@@ -174,7 +174,6 @@
         var timeControl = L.control.info({
             position: 'bottomleft'
         }).addTo(map);
-
 
         // add geojson events info
         var eventsGeoJSON;
@@ -222,9 +221,12 @@
             } else {
                 console.error("Geolocation is not supported by this browser");
             }
+            navigator.geolocation.getCurrentPosition(showLocation, (err)=> {
+                console.error(`Error getting current location: ${err}`);
+            });
         }
 
-        var trackPos = false;
+        var trackPos = true;
         setTrack = (trackPos0) => {
             trackPos = trackPos0;
             if(trackPos0) {
@@ -236,7 +238,6 @@
         map.on('move', () => {
             setTrack(false);
         })
-
 
         // show current location
         var locationMarker;
@@ -282,11 +283,12 @@
             if(trackPos) {
                 var latlng = L.latLng(lat, long);
                 map.panTo(latlng);
+                window.setTimeout(() => {
+                    setTrack(true);
+                }, 100);
             }
         }
         startLocation();
-
-
 
         // realtime positioning controls
         var dateLabel;
@@ -309,6 +311,9 @@
             position: 'bottomright'
         }).addTo(map);
 
+        window.setTimeout(() => {
+            setTrack(true);
+        }, 500)
     </script>
 
 
